@@ -49,17 +49,16 @@ str2op(char* s) {
 
 UInt16
 hextract(char *s) {
-	// the string can at most be four characters
 	UInt16 val = 0;
+	char sv;
 
-	for(int i=0;i<4;i++) {	
-		char sv = s[i];
+	while((sv = *s++)) {
 
 		if((sv > 47 ) && (sv < 58)) sv -= 48;
 		else if((sv > 64) && (sv < 71)) sv -= 55;
 		else if((sv > 96) && (sv < 103)) sv -= 87;
 
-		val += sv << ((3-i)<<2);	
+		val = (val << 4) + sv;
 	}
 	return val;
 }
