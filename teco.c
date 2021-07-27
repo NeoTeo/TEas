@@ -63,6 +63,23 @@ hextract(char *s) {
 	return val;
 }
 
+static void
+writebyte(UInt8 val) {
+	bin[binlen++] = val;	
+}
+
+static void
+writeshort(UInt16 val) {
+	bin[binlen++] = val >> 8;	
+	bin[binlen++] = val & 0xFF;	
+}
+
+static int stln(char *s) { 
+	int i = 0;
+	for(;(s[i] && s[++i]);) ;
+	return i;
+}
+
 static int
 scanInput(FILE *f) {
 
@@ -83,14 +100,17 @@ scanInput(FILE *f) {
 			switch(token[0]) {
 				case '#': 
 					val = hextract(&token[1]);
-					printf("literal! %d",val);
+					bin[binlen++] = 0x02;	// opcode for .lit
 					
 				case '@': printf("label!");
 				case '.': printf("dot!");
+				default:
+					if((op = str2op(token)) < 0) continue;
+				printf("opcode is %d\n",op);
+				bin[binlen++] = op;
+					
 			}	
-			//if((op = str2op(token)) < 0) continue;
 			
-			printf("opcode is %d\n",op);
 		}
 	}
 
@@ -116,6 +136,8 @@ main(int argc, char **argv) {
 
 		if(scanInput(f))
 		// write out the bin.
+		printf("the bin is:");
+		for(UInt16 i=0;i<binlen;i++) printf("%x",bin[i]);
 		exit(EXIT_SUCCESS);
 	}
 }
