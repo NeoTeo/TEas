@@ -15,8 +15,8 @@ typedef unsigned short UInt16;
 typedef signed short Int16;
 
 typedef struct Label {
-	char* label;
-	short addr;
+	char* name;
+	short addr;	
 } Label;
 
 // Constants
@@ -37,23 +37,32 @@ static char ops[][4] = {"brk","nop","lit","pop",
 Label labels[labelMax];
 int lcount = 0;
 
-void
+int
 addLabel(Label label) {
 	if(lcount >= labelMax) {
-		printf("Error: label buffer full!");
-		return;
+		fprintf(stderr, "addLabel: label buffer full!");
+		return -1 ;
 	}	
 	// do i need to copy the label string here?
 	labels[lcount++] = label;
+	return 0;
 }
 
 int
-isLabel(char* token) {
+labelIdx(char* token) {
 	for (int i=0;i<lcount;i++) {
-		if(strcmp(token, labels[i].label) == 0) return 1;
+		if(strcmp(token, labels[i].name) == 0) return i;
 	}
-	return 0;
+	return -1;
 }
+
+//int
+//isLabel(char* token) {
+//	for (int i=0;i<lcount;i++) {
+//		if(strcmp(token, labels[i].name) == 0) return 1;
+//	}
+//	return 0;
+//}
 
 void
 lowerize(char* s) {
@@ -61,7 +70,6 @@ lowerize(char* s) {
 		*s = tolower(*s);
 		s += 1;
 	}
-
 }
 
 
@@ -104,7 +112,7 @@ str2op(char* s) {
 	lowerize(s);
 	UInt8 count = sizeof(ops)/sizeof(ops[0]);
 	for(int op=0;op<count;op++) {
-		printf("comparing %s with %s\n",ops[op],s);
+		//printf("comparing %s with %s\n",ops[op],s);
 		char *opc = ops[op];
 		if(opc[0] == s[0] && opc[1] == s[1] && opc[2] == s[2]) {
 			printf("op found: %d\n",op);
@@ -120,43 +128,53 @@ scanInput(FILE *f) {
 	char *sourceline = NULL;
 	size_t len = 0;
 	ssize_t read;
-	char* token;
-
-	int op;
+	char *token;
+	char buf[42];
+	int op, lidx;
 	UInt16 val;
+	Label l ;
 
-	//while((ch = fgetc(f)) != EOF) {
-	while((read = getline(&sourceline, &len, f) != EOF)) {
-		printf(":========= %s",sourceline);
-		while((token = strsep(&sourceline, " "))) {
-			printf("token %s\n", token);
-			// first check for compiler symbols
-			switch(token[0]) {
-				case '#': 
-					val = hextract(&token[1]);
+	while(fscanf(f, "%s", buf) == 1) {
+		token = buf;
+		printf("buf%s\n", buf);
+		// first check for compiler symbols
+		switch(token[0]) {
+			case '#': 
+				val = hextract(&token[1]);
 
-					// are we writing a byte or a short?
-					if(stln(token+1) < 3) { 
-						bin[binlen++] = 0x02 ;	// opcode for .lit
-						writebyte(val);
-					}
-					else {
-						bin[binlen++] = 0x22 ;	// opcode for .lit16
-						writeshort(val);
-					}
-				break;	
-				case '@': printf("label!");
-				break;	
-				case '.': printf("dot!");
-				break;	
-				default:
-					if((op = str2op(token)) < 0) continue;
-				printf("opcode is %d\n",op);
-				bin[binlen++] = op;
-					
-			}	
-			
-		}
+				// are we writing a byte or a short?
+				if(stln(token+1) < 3) { 
+					bin[binlen++] = 0x02 ;	// opcode for .lit
+					writebyte(val);
+				}
+				else {
+					bin[binlen++] = 0x22 ;	// opcode for .lit16
+					writeshort(val);
+				}
+			break;	
+			case '@': 
+				printf("handling label");
+				// if the label exist use it, else create it.
+				if((lidx = labelIdx(token+1)) > 0) {
+					Label tl = labels[lidx];
+					printf("found label: %s at %d\n",l.name, l.addr);
+				} else {
+					l.name = token+1;
+					l.addr = binlen;
+					addLabel(l) ;
+					printf("added new label %s at address %d\n",l.name, l.addr);
+				}
+
+			break;	
+			case '.': printf("dot!");
+			break;	
+			default:
+				if((op = str2op(token)) < 0) continue;
+			printf("opcode is %d\n",op);
+			bin[binlen++] = op;
+				
+		}	
+		
 	}
 
 	// clean up.
