@@ -14,6 +14,13 @@ typedef signed char Int8;
 typedef unsigned short UInt16;
 typedef signed short Int16;
 
+typedef struct Label {
+	char* label;
+	short addr;
+} Label;
+
+// Constants
+const int labelMax = 256;
 
 // The binary can at most be the size of TEMA's RAM
 UInt8 bin[MAXBIN];
@@ -26,6 +33,28 @@ static char ops[][4] = {"brk","nop","lit","pop",
 						"equ","grt","neg","jmp",
 						"jnz","jsr","bsi","bso"};
 
+
+Label labels[labelMax];
+int lcount = 0;
+
+void
+addLabel(Label label) {
+	if(lcount >= labelMax) {
+		printf("Error: label buffer full!");
+		return;
+	}	
+	// do i need to copy the label string here?
+	labels[lcount++] = label;
+}
+
+int
+isLabel(char* token) {
+	for (int i=0;i<lcount;i++) {
+		if(strcmp(token, labels[i].label) == 0) return 1;
+	}
+	return 0;
+}
+
 void
 lowerize(char* s) {
 	while(*s != '\0') {
@@ -35,17 +64,6 @@ lowerize(char* s) {
 
 }
 
-int
-str2op(char* s) {
-	lowerize(s);
-	UInt8 count = sizeof(ops)/sizeof(ops[0]);
-	for(int op=0;op<count;op++) {
-		//printf("comparing %s with %s\n",ops[op],s);
-		if(strcmp(ops[op],s) == 0)
-			return op;
-	}
-	return -1;
-}
 
 UInt16
 hextract(char *s) {
@@ -74,10 +92,26 @@ writeshort(UInt16 val) {
 	bin[binlen++] = val & 0xFF;	
 }
 
-static int stln(char *s) { 
+static int 
+stln(char *s) { 
 	int i = 0;
 	for(;(s[i] && s[++i]);) ;
 	return i;
+}
+
+int
+str2op(char* s) {
+	lowerize(s);
+	UInt8 count = sizeof(ops)/sizeof(ops[0]);
+	for(int op=0;op<count;op++) {
+		printf("comparing %s with %s\n",ops[op],s);
+		char *opc = ops[op];
+		if(opc[0] == s[0] && opc[1] == s[1] && opc[2] == s[2]) {
+			printf("op found: %d\n",op);
+			return op;
+		}
+	}
+	return -1;
 }
 
 static int
@@ -100,13 +134,21 @@ scanInput(FILE *f) {
 			switch(token[0]) {
 				case '#': 
 					val = hextract(&token[1]);
-					bin[binlen++] = 0x02;	// opcode for .lit
+
 					// are we writing a byte or a short?
-					if(stln(token+1) < 3) writebyte(val);
-					else writeshort(val);
-					
+					if(stln(token+1) < 3) { 
+						bin[binlen++] = 0x02 ;	// opcode for .lit
+						writebyte(val);
+					}
+					else {
+						bin[binlen++] = 0x22 ;	// opcode for .lit16
+						writeshort(val);
+					}
+				break;	
 				case '@': printf("label!");
+				break;	
 				case '.': printf("dot!");
+				break;	
 				default:
 					if((op = str2op(token)) < 0) continue;
 				printf("opcode is %d\n",op);
@@ -118,18 +160,18 @@ scanInput(FILE *f) {
 	}
 
 	// clean up.
-	fclose(f);
 	if(sourceline) free(sourceline);
-	printf("handleSymbols done");
-	return 1;
+	return 0;
 }
 
 int
 main(int argc, char **argv) {
+	int err = 0;
 
-	if (argc != 3 || strcmp(argv[1],"-f") != 0) printf("Wrong number of arguments");
+	if (argc != 3) fprintf(stderr,"Usage: teasm source.tas target.obj");
 	else {
-		char *filepath = argv[2];	
+		char *filepath = argv[1];	
+		char *outfile = argv[2];
 		FILE *f;
 
 		if(!(f = fopen(filepath, "rb"))) {
@@ -137,38 +179,17 @@ main(int argc, char **argv) {
 			return 0;
 		}
 
-		if(scanInput(f))
+		if((err = scanInput(f))) {
+			fprintf(stderr, "Error %d scanning input\n",err);
+			return err;
+		}
+
 		// write out the bin.
 		printf("the bin is:");
 		for(UInt16 i=0;i<binlen;i++) printf("0x%x ",bin[i]);
-		exit(EXIT_SUCCESS);
+
+		fwrite(bin, binlen, 1, fopen(outfile, "wb"));
+		fclose(f);
 	}
-}
-typedef unsigned short Uint16;
-
-typedef struct Label {
-	char* label;
-	short addr;
-} Label;
-
-const int labelMax = 256;
-Label labels[labelMax];
-int lcount = 0;
-
-void
-addLabel(Label label) {
-	if(lcount >= labelMax) {
-		printf("Error: label buffer full!");
-		return;
-	}	
-	// do i need to copy the label string here?
-	labels[lcount++] = label;
-}
-
-int
-isLabel(char* token) {
-	for (int i=0;i<lcount;i++) {
-		if(strcmp(token, labels[i].label) == 0) return 1;
-	}
-	return 0;
+	return err;
 }
