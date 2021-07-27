@@ -101,6 +101,9 @@ scanInput(FILE *f) {
 				case '#': 
 					val = hextract(&token[1]);
 					bin[binlen++] = 0x02;	// opcode for .lit
+					// are we writing a byte or a short?
+					if(stln(token+1) < 3) writebyte(val);
+					else writeshort(val);
 					
 				case '@': printf("label!");
 				case '.': printf("dot!");
@@ -137,7 +140,7 @@ main(int argc, char **argv) {
 		if(scanInput(f))
 		// write out the bin.
 		printf("the bin is:");
-		for(UInt16 i=0;i<binlen;i++) printf("%x",bin[i]);
+		for(UInt16 i=0;i<binlen;i++) printf("0x%x ",bin[i]);
 		exit(EXIT_SUCCESS);
 	}
 }
