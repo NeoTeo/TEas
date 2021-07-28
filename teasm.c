@@ -142,7 +142,7 @@ scanInput(FILE *f) {
 
 	while(fscanf(f, "%s", buf) == 1) {
 		token = buf;
-		printf("buf%s\n", buf);
+		printf("buf %s\n", buf);
 		// first check for compiler symbols
 		switch(token[0]) {
 			case '#': 
@@ -164,20 +164,17 @@ scanInput(FILE *f) {
 				// if the label exist use it, else create it.
 				if((lidx = labelIdx(token+1)) < 0) {
 					l.name = token+1;
-					l.addr = binlen-1;
+					l.addr = binlen;
 					addLabel(l) ;
 					printf("added new label %s at address %d\n",l.name, l.addr);
 				} else {
 					Label tl = labels[lidx];
-					printf("found label: %s at %d\n",tl.name, tl.addr);
-					
+					printf("found label: %s at %d. binlen is %d\n",tl.name, tl.addr,binlen);
+
 					// write the lit opcode
 					bin[binlen++] = 0x2;
 					// write the offset
-					writebyte(tl.addr-binlen);
-
-					//bin[binlen++] = 0x22;
-					//writeshort(tl.addr);
+					writebyte(tl.addr-(binlen+1));// add one to address to account for this writebyte offset.	
 				}
 
 			break;	
