@@ -51,8 +51,13 @@ addLabel(Label label) {
 int
 labelIdx(char* token) {
 	for (int i=0;i<lcount;i++) {
-		if(strcmp(token, labels[i].name) == 0) return i;
+		printf("comparing %s == %s\n",token,labels[i].name);
+		if(strcmp(token, labels[i].name) == 0) {
+			printf("returning %d\n",i);
+			return i;
+		}
 	}
+	printf("returning -1");
 	return -1;
 }
 
@@ -132,7 +137,7 @@ scanInput(FILE *f) {
 	char buf[42];
 	int op, lidx;
 	UInt16 val;
-	Label l ;
+	Label l;
 
 	while(fscanf(f, "%s", buf) == 1) {
 		token = buf;
@@ -155,14 +160,14 @@ scanInput(FILE *f) {
 			case '@': 
 				printf("handling label");
 				// if the label exist use it, else create it.
-				if((lidx = labelIdx(token+1)) > 0) {
-					Label tl = labels[lidx];
-					printf("found label: %s at %d\n",l.name, l.addr);
-				} else {
+				if((lidx = labelIdx(token+1)) < 0) {
 					l.name = token+1;
 					l.addr = binlen;
 					addLabel(l) ;
 					printf("added new label %s at address %d\n",l.name, l.addr);
+				} else {
+					Label tl = labels[lidx];
+					printf("found label: %s at %d\n",l.name, l.addr);
 				}
 
 			break;	
