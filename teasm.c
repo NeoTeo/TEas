@@ -44,7 +44,8 @@ addLabel(Label label) {
 		return -1 ;
 	}	
 	// do i need to copy the label string here?
-	labels[lcount++] = label;
+	labels[lcount].name = label.name;
+	labels[lcount++].addr = label.addr;
 	return 0;
 }
 
@@ -157,24 +158,33 @@ scanInput(FILE *f) {
 					writeshort(val);
 				}
 			break;	
+			case ',':	// cause the next opcode to be 
 			case '@': 
 				printf("handling label");
 				// if the label exist use it, else create it.
 				if((lidx = labelIdx(token+1)) < 0) {
 					l.name = token+1;
-					l.addr = binlen;
+					l.addr = binlen-1;
 					addLabel(l) ;
 					printf("added new label %s at address %d\n",l.name, l.addr);
 				} else {
 					Label tl = labels[lidx];
-					printf("found label: %s at %d\n",l.name, l.addr);
+					printf("found label: %s at %d\n",tl.name, tl.addr);
+					
+					// write the lit opcode
+					bin[binlen++] = 0x2;
+					// write the offset
+					writebyte(tl.addr-binlen);
+
+					//bin[binlen++] = 0x22;
+					//writeshort(tl.addr);
 				}
 
 			break;	
 			case '.': printf("dot!");
 			break;	
 			default:
-				if((op = str2op(token)) < 0) continue;
+				if((op = str2op(token)) < 0) break;
 			printf("opcode is %d\n",op);
 			bin[binlen++] = op;
 				
