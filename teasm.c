@@ -122,9 +122,19 @@ str2op(char* s) {
 		char *opc = ops[op];
 		if(opc[0] == s[0] && opc[1] == s[1] && opc[2] == s[2]) {
 			printf("op found: %d\n",op);
+			// add modifier flags
+			int idx = 3;
+			while(s[idx]) {
+				switch(s[idx++]) {
+				case 's': op |= 0x20; break;	// use short version of opcode
+				case 'c': op |= 0x40; break;	// copy instead of pop
+				case 'r': op |= 0x80; break;	// use return stack instead of parameter stack
+				}
+			}
 			return op;
 		}
 	}
+
 	return -1;
 }
 
@@ -158,7 +168,7 @@ scanInput(FILE *f) {
 					writeshort(val);
 				}
 			break;	
-			case ',':	// cause the next opcode to be 
+
 			case '@': 
 				printf("handling label");
 				// if the label exist use it, else create it.
@@ -171,6 +181,8 @@ scanInput(FILE *f) {
 					Label tl = labels[lidx];
 					printf("found label: %s at %d. binlen is %d\n",tl.name, tl.addr,binlen);
 
+					/// this is where we should check for modifiers to the label to decide 
+					/// if we're doing an absolute or relative jump
 					// write the lit opcode
 					bin[binlen++] = 0x2;
 					// write the offset
