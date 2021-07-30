@@ -149,10 +149,17 @@ scanInput(FILE *f) {
 	int op, lidx;
 	UInt16 val;
 	Label l;
+	UInt8 inComment = 0;
 
 	while(fscanf(f, "%s", buf) == 1) {
 		token = buf;
 		printf("buf %s\n", buf);
+
+		// skip comments
+		if(token[0] == '(') { inComment = 1; continue; }
+		if(token[0] == ')') { inComment = 0; continue; }
+		if(inComment) continue;	
+
 		// first check for compiler symbols
 		switch(token[0]) {
 			case '#': 
