@@ -4,6 +4,7 @@
 #include <ctype.h>
 
 #define MAXBIN 65535
+#define MAXLAB 256 
 /*
 So, i need a way of deciding if a token is an opcode or a value.
 To do that i need a way of quickly comparing a token with existing opcodes.
@@ -14,13 +15,14 @@ typedef signed char Int8;
 typedef unsigned short UInt16;
 typedef signed short Int16;
 
+// Constants
+const int labelNameMax = 64;
+
 typedef struct Label {
-	char* name;
+	char name[labelNameMax];
 	short addr;	
 } Label;
 
-// Constants
-const int labelMax = 256;
 
 // The binary can at most be the size of TEMA's RAM
 UInt8 bin[MAXBIN];
@@ -34,20 +36,9 @@ static char ops[][4] = {"brk","nop","lit","pop",
 						"jnz","jsr","bsi","bso"};
 
 
-Label labels[labelMax];
+Label labels[MAXLAB];
 int lcount = 0;
 
-int
-addLabel(Label label) {
-	if(lcount >= labelMax) {
-		fprintf(stderr, "addLabel: label buffer full!");
-		return -1 ;
-	}	
-	// do i need to copy the label string here?
-	labels[lcount].name = label.name;
-	labels[lcount++].addr = label.addr;
-	return 0;
-}
 
 int
 labelIdx(char* token) {
@@ -58,7 +49,6 @@ labelIdx(char* token) {
 			return i;
 		}
 	}
-	printf("returning -1");
 	return -1;
 }
 
@@ -138,6 +128,19 @@ str2op(char* s) {
 	return -1;
 }
 
+int
+addLabel(char *name, UInt16 addr) {
+	if(lcount >= labelNameMax) {
+		fprintf(stderr, "addLabel: label buffer full!");
+		return -1 ;
+	}	
+	// do i need to copy the label string here? Yes!
+	memcpy(labels[lcount].name, name, strlen(name)+1);
+	memcpy(&labels[lcount++].addr, &addr, 2);
+	printf("added new label %s at address %d\n",labels[lcount-1].name, labels[lcount-1].addr);
+	return 0;
+}
+
 static int
 scanInput(FILE *f) {
 
@@ -162,28 +165,34 @@ scanInput(FILE *f) {
 
 		// first check for compiler symbols
 		switch(token[0]) {
+
+			case '^':
+				val = hextract(&token[1]);
+				binlen = val;
+				break;
+
 			case '#': 
 				val = hextract(&token[1]);
 
 				// are we writing a byte or a short?
 				if(stln(token+1) < 3) { 
-					bin[binlen++] = 0x02 ;	// opcode for .lit
+					writebyte(0x02);		// opcode for .lit
 					writebyte(val);
 				}
 				else {
-					bin[binlen++] = 0x22 ;	// opcode for .lit16
+					writebyte(0x22) ;	// opcode for .lit16
 					writeshort(val);
 				}
 			break;	
 
 			case '@': 
-				printf("handling label");
+				printf("handling label: ");
 				// if the label exist use it, else create it.
 				if((lidx = labelIdx(token+1)) < 0) {
-					l.name = token+1;
-					l.addr = binlen;
-					addLabel(l) ;
-					printf("added new label %s at address %d\n",l.name, l.addr);
+					//l.name = token+1;
+					//l.addr = binlen;
+					addLabel(token+1, binlen) ;
+					//printf("added new label %s at address %d\n",l.name, l.addr);
 				} else {
 					Label tl = labels[lidx];
 					printf("found label: %s at %d. binlen is %d\n",tl.name, tl.addr,binlen);
