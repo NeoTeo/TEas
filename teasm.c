@@ -141,6 +141,33 @@ addLabel(char *name, UInt16 addr) {
 	return 0;
 }
 
+// An initial pass to ensure that labels can be referenced before they have been defined.
+static int
+preScan(FILE *f) {
+	char buf[42];
+	int lidx;
+	UInt16 val;
+
+	while(fscanf(f, "%s", buf) == 1) {
+		switch(buf[0]) {
+			case '^':
+				val = hextract(&buf[1]);
+				binlen = val;
+				break;
+
+			case '@': 
+				printf("pre-scan handling label: ");
+				// if the label exist use it, else create it.
+				if((lidx = labelIdx(buf+1)) < 0) {
+					addLabel(buf+1, binlen) ;
+				}
+				break;
+		}
+	}
+	rewind(f);
+	return 0;
+}
+
 static int
 scanInput(FILE *f) {
 
@@ -172,7 +199,11 @@ scanInput(FILE *f) {
 				break;
 
 			case '#': 
-				val = hextract(&token[1]);
+				if((token[1] == '@') && (lidx = labelIdx(token+2))) {
+					val = labels[lidx].addr;
+				} else {
+					val = hextract(&token[1]);
+				}
 
 				// are we writing a byte or a short?
 				if(stln(token+1) < 3) { 
@@ -185,14 +216,22 @@ scanInput(FILE *f) {
 				}
 			break;	
 
+			case '.':	// address is single byte offset from address 0x0000  
+				if((lidx = labelIdx(token+2))) {
+					Label tl = labels[lidx];
+					writeshort(tl.addr);
+				}
+				printf("dot!"); break;	
+
 			case '@': 
-				printf("handling label: ");
+				printf("mainscan: label: ");
 				// if the label exist use it, else create it.
 				if((lidx = labelIdx(token+1)) < 0) {
 					//l.name = token+1;
 					//l.addr = binlen;
-					addLabel(token+1, binlen) ;
+					//addLabel(token+1, binlen) ;
 					//printf("added new label %s at address %d\n",l.name, l.addr);
+					fprintf(stderr,"label not found!");
 				} else {
 					Label tl = labels[lidx];
 					printf("found label: %s at %d. binlen is %d\n",tl.name, tl.addr,binlen);
@@ -204,10 +243,8 @@ scanInput(FILE *f) {
 					// write the offset
 					writebyte(tl.addr-(binlen+1));// add one to address to account for this writebyte offset.	
 				}
+				break;	
 
-			break;	
-			case '.': printf("dot!");
-			break;	
 			default:
 				if((op = str2op(token)) < 0) break;
 			printf("opcode is %d\n",op);
@@ -235,6 +272,11 @@ main(int argc, char **argv) {
 		if(!(f = fopen(filepath, "rb"))) {
 			fprintf(stderr, "Error: source file missing\n");
 			return 0;
+		}
+
+		if((err = preScan(f))) {
+			fprintf(stderr, "Error %d pre-scanning input\n",err);
+			return err;
 		}
 
 		if((err = scanInput(f))) {
