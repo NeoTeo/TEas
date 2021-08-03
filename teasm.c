@@ -156,6 +156,7 @@ preScan(FILE *f) {
 				binlen = val;
 				break;
 
+			/*
 			case '@':	// define label by associating a name with an absolute address 
 				printf("Handling label: ");
 				// if the label already exists, create a new one using the existing as a namespace.
@@ -165,6 +166,7 @@ preScan(FILE *f) {
 					addLabel(buf+1, binlen) ;
 				}
 				break;
+			*/
 		}
 	}
 
@@ -230,8 +232,15 @@ scanInput(FILE *f) {
 				}
 				break;	
 
-/*			case '@': // 
-				printf("mainscan: label: ");
+			case '@': // 
+				printf("Handling label: ");
+				// if the label already exists, create a new one using the existing as a namespace.
+				// NB: to implement. Needs a string concatenation function.
+				// if the label does not exist, create it
+				if((lidx = labelIdx(buf+1)) < 0) {
+					addLabel(buf+1, binlen) ;
+				}
+/*
 				// if the label exist use it, else create it.
 				if((lidx = labelIdx(token+1)) < 0) {
 					//l.name = token+1;
@@ -250,8 +259,8 @@ scanInput(FILE *f) {
 					// write the offset
 					writebyte(tl.addr-(binlen+1));// add one to address to account for this writebyte offset.	
 				}
-				break;	
 */
+				break;	
 			default:
 				if((op = str2op(token)) < 0) break;
 				printf("opcode is %d\n",op);
