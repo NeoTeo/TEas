@@ -148,22 +148,27 @@ preScan(FILE *f) {
 	int lidx;
 	UInt16 val;
 
+	printf("------------ PRE-SCAN START ---------------\n");
 	while(fscanf(f, "%s", buf) == 1) {
 		switch(buf[0]) {
-			case '^':
+			case '^':	// move to position in memory given by absolute argument
 				val = hextract(&buf[1]);
 				binlen = val;
 				break;
 
-			case '@': 
-				printf("pre-scan handling label: ");
-				// if the label exist use it, else create it.
+			case '@':	// define label by associating a name with an absolute address 
+				printf("Handling label: ");
+				// if the label already exists, create a new one using the existing as a namespace.
+				// NB: to implement. Needs a string concatenation function.
+				// if the label does not exist, create it
 				if((lidx = labelIdx(buf+1)) < 0) {
 					addLabel(buf+1, binlen) ;
 				}
 				break;
 		}
 	}
+
+	printf("------------ PRE-SCAN END ---------------\n");
 	rewind(f);
 	return 0;
 }
@@ -180,7 +185,7 @@ scanInput(FILE *f) {
 	UInt16 val;
 	Label l;
 	UInt8 inComment = 0;
-
+	printf("------------ MAIN SCAN START ---------------\n");
 	while(fscanf(f, "%s", buf) == 1) {
 		token = buf;
 		printf("buf %s\n", buf);
@@ -193,13 +198,13 @@ scanInput(FILE *f) {
 		// first check for compiler symbols
 		switch(token[0]) {
 
-			case '^':
+			case '^': // move to position in memory given by absolute argument
 				val = hextract(&token[1]);
 				binlen = val;
 				break;
 
-			case '#': 
-				if((token[1] == '@') && (lidx = labelIdx(token+2))) {
+			case '#': // literal values given as hex values or as labels to be resolved. 
+				if((token[1] == '@') && ((lidx = labelIdx(token+2)) >= 0)) {
 					val = labels[lidx].addr;
 				} else {
 					val = hextract(&token[1]);
@@ -214,16 +219,18 @@ scanInput(FILE *f) {
 					writebyte(0x22) ;	// opcode for .lit16
 					writeshort(val);
 				}
-			break;	
+				break;	
 
-			case '.':	// address is single byte offset from address 0x0000  
-				if((lidx = labelIdx(token+2))) {
+			case '$':	// relative address given as a label to be resolved and converted to relative distance.
+				if((token[1] == '@') && ((lidx = labelIdx(token+2)) >= 0)) {
 					Label tl = labels[lidx];
-					writeshort(tl.addr);
+					bin[binlen++] = 0x2; // write the lit opcode
+					writebyte(tl.addr-(binlen+1));// add one to address to account for this writebyte offset.	
+					printf("relative address of label is %d\n", tl.addr-(binlen)); 
 				}
-				printf("dot!"); break;	
+				break;	
 
-			case '@': 
+/*			case '@': // 
 				printf("mainscan: label: ");
 				// if the label exist use it, else create it.
 				if((lidx = labelIdx(token+1)) < 0) {
@@ -244,16 +251,16 @@ scanInput(FILE *f) {
 					writebyte(tl.addr-(binlen+1));// add one to address to account for this writebyte offset.	
 				}
 				break;	
-
+*/
 			default:
 				if((op = str2op(token)) < 0) break;
-			printf("opcode is %d\n",op);
-			bin[binlen++] = op;
-				
+				printf("opcode is %d\n",op);
+				bin[binlen++] = op;
 		}	
 		
 	}
 
+	printf("------------ PRE SCAN END ---------------\n");
 	// clean up.
 	if(sourceline) free(sourceline);
 	return 0;
@@ -286,7 +293,10 @@ main(int argc, char **argv) {
 
 		// write out the bin.
 		printf("the bin is:");
-		for(UInt16 i=0;i<binlen;i++) printf("0x%x ",bin[i]);
+		for(UInt16 i=0;i<binlen;i++) {
+			if(i%8 == 0) printf("\n");
+			printf("0x%x ",bin[i]);
+		}
 
 		fwrite(bin, binlen, 1, fopen(outfile, "wb"));
 		fclose(f);
