@@ -149,10 +149,17 @@ linkScan(FILE *f) {
 	int lidx;
 	UInt16 val;
 
+	UInt8 inComment = 0;
 	binlen = 0; // reset bin length
 
 	printf("------------ LINK-SCAN START ---------------\n");
 	while(fscanf(f, "%s", buf) == 1) {
+
+		// skip comments // NB: move this into a function.
+		if(buf[0] == '(') { inComment = 1; continue; }
+		if(buf[0] == ')') { inComment = 0; continue; }
+		if(inComment) continue;	
+
 		switch(buf[0]) {
 			case '^':	// move to position in memory given by absolute argument
 				val = hextract(&buf[1]);
