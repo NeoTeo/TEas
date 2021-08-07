@@ -192,7 +192,7 @@ linkScan(FILE *f) {
 				if((buf[1] == '@') && ((lidx = labelIdx(buf+2)) >= 0)) {
 					writebyte(0x2);	// opcode for .lit
 					writebyte(labels[lidx].addr);
-					printf("floored address of label %s is 0x%x\n", labels[lidx].name, (UInt8)labels[lidx].addr); 
+					printf("lsb of label address %s is 0x%x\n", labels[lidx].name, (UInt8)labels[lidx].addr); 
 				} 
 				break;
 
