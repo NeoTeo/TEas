@@ -33,7 +33,8 @@ static char ops[][4] = {"brk","nop","lit","pop",
 						"dup","ovr","rot","swp",
 						"add","sub","mul","div",
 						"equ","grt","neg","jmp",
-						"jnz","jsr","bsi","bso"};
+						"jnz","jsr","lda","sta",
+						"ldr","str","bsi","bso"};
 
 
 Label labels[MAXLAB];
@@ -68,7 +69,20 @@ lowerize(char* s) {
 	}
 }
 
+// returns 0 if the given string is not a valid hexadecimal value
+// returns !0 otherwise
+static int
+ishex(char *s) {
+	char sv;
+	while((sv = *s++)) {
+		if(sv >= '0' && sv <= '9' || sv >= 'a' && sv < 'g' || sv >= 'A' && sv < 'G')
+			continue;
+		return 0;
+	}
+	return 1;
+}
 
+// returns the converted value of a hexadecimal string
 UInt16
 hextract(char *s) {
 	UInt16 val = 0;
@@ -166,6 +180,14 @@ linkScan(FILE *f) {
 				binlen = val;
 				break;
 
+			case ':': // write address of label at current address without lit opcode
+				if((buf[1] == '@') && ((lidx = labelIdx(buf+2)) >= 0)) {
+					printf("writing raw address in 0x%x to 0x%x\n",binlen,binlen+1);
+					writeshort(labels[lidx].addr);
+					printf("absolute address of raw label is 0x%x\n", labels[lidx].addr); 
+				} 
+				break;
+
 			case '#': // literal values given as hex values or as labels to be resolved. 
 				if((buf[1] == '@') && ((lidx = labelIdx(buf+2)) >= 0)) {
 					printf("writing literal address in 0x%x to 0x%x\n",binlen,binlen+3);
@@ -173,7 +195,7 @@ linkScan(FILE *f) {
 					writeshort(labels[lidx].addr);
 					printf("absolute address of literal label is 0x%x\n", labels[lidx].addr); 
 				} else {
-					// byte or short?
+					// not a label, so is the literal size a byte or a short?
 					binlen += (stln(buf+1) < 3) ? 2 : 3; // advance position in binary by the opcode and the short	
 				}
 				break;
@@ -195,8 +217,16 @@ linkScan(FILE *f) {
 				break;
 		
 			default:
-				binlen++;
-				printf("opcode assumed. Incrementing binlen to 0x%x\n",binlen);
+				//binlen++;
+				//printf("opcode assumed. Incrementing binlen to 0x%x\n",binlen);
+				
+				if(str2op(buf) >= 0) { binlen++; } 
+				else { 
+					if(ishex(buf)) { 
+						binlen += (stln(buf) < 3) ? 1 : 2; // advance position in binary by the byte or short	
+						printf("link-scan found raw hex 0x%x",val);
+					}
+				}
 		}
 	}
 
@@ -232,6 +262,14 @@ mainScan(FILE *f) {
 			case '^': // move to position in memory given by absolute argument
 				val = hextract(&buf[1]);
 				binlen = val;
+				break;
+
+			case ':': // raw value to write at current address without lit opcode
+				if(buf[1] == '@') {
+					binlen += 2;	// make room for raw address as short 
+					break;
+				}
+				//val = hextract(&buf[1]);
 				break;
 
 			case '#': // literal values given as hex values or as labels to be resolved. 
@@ -300,9 +338,19 @@ mainScan(FILE *f) {
 */
 				break;	
 			default:
-				if((op = str2op(buf)) < 0) break;
-				printf("opcode is %d\n",op);
-				bin[binlen++] = op;
+				//if((op = str2op(buf)) < 0) break;
+				if((op = str2op(buf)) >= 0) {
+					printf("opcode is %d\n",op);
+					bin[binlen++] = op;
+				} else {
+					// if the buf is a valid hex value store it at binlen as a raw value.
+					if(ishex(buf)) {
+						val = hextract(buf);
+						if(stln(buf) < 3) writebyte(val);
+						else writeshort(val);
+						printf("found raw hex 0x%x",val);
+					}
+				}
 		}	
 		
 	}
