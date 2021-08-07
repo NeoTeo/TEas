@@ -188,6 +188,14 @@ linkScan(FILE *f) {
 				} 
 				break;
 
+			case '_': // write label address as a floored byte/offset from address 0x0000 
+				if((buf[1] == '@') && ((lidx = labelIdx(buf+2)) >= 0)) {
+					writebyte(0x2);	// opcode for .lit
+					writebyte(labels[lidx].addr);
+					printf("floored address of label %s is 0x%x\n", labels[lidx].name, (UInt8)labels[lidx].addr); 
+				} 
+				break;
+
 			case '#': // literal values given as hex values or as labels to be resolved. 
 				if((buf[1] == '@') && ((lidx = labelIdx(buf+2)) >= 0)) {
 					printf("writing literal address in 0x%x to 0x%x\n",binlen,binlen+3);
@@ -264,12 +272,12 @@ mainScan(FILE *f) {
 				binlen = val;
 				break;
 
-			case ':': // raw value to write at current address without lit opcode
-				if(buf[1] == '@') {
-					binlen += 2;	// make room for raw address as short 
-					break;
-				}
-				//val = hextract(&buf[1]);
+			case ':': // elide short address
+				if(buf[1] == '@') binlen += 2;	// make room for raw address as short 
+				break;
+
+			case '_': // elide floored label; lit + byte addr
+				if((buf[1] == '@') && ((lidx = labelIdx(buf+2)) >= 0)) { binlen += 2; } 
 				break;
 
 			case '#': // literal values given as hex values or as labels to be resolved. 
