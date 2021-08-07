@@ -188,7 +188,7 @@ linkScan(FILE *f) {
 				} 
 				break;
 
-			case '_': // write label address as a floored byte/offset from address 0x0000 
+			case '_': // write lsb of label address (aka offset from address 0x0000)
 				if((buf[1] == '@') && ((lidx = labelIdx(buf+2)) >= 0)) {
 					writebyte(0x2);	// opcode for .lit
 					writebyte(labels[lidx].addr);
