@@ -33,9 +33,10 @@ static char ops[][4] = {"brk","nop","lit","pop",
 						"dup","ovr","rot","swp",
 						"add","sub","mul","div",
 						"and","ior","xor","shi",
-						"equ","grt","neg","jmp",
-						"jnz","jsr","lda","sta",
-						"ldr","str","bsi","bso"};
+						"equ","neq","grt","lst",
+						"jmp","jnz","jsr",
+						"lda","sta","ldr","str",
+						"bsi","bso"};
 
 
 Label labels[MAXLAB];
