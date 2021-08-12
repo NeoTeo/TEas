@@ -30,7 +30,7 @@ UInt16 binlen = 0;
 
 // NB: This table needs to match the number and order of the opcodes in the TEMA sources.
 static char ops[][4] = {"brk","nop","lit","pop",
-						"dup","ovr","rot","swp",
+						"dup","ovr","rot","swp","sts",
 						"add","sub","mul","div",
 						"and","ior","xor","shi",
 						"equ","neq","grt","lst",
@@ -124,7 +124,7 @@ str2op(char* s) {
 	lowerize(s);
 	UInt8 count = sizeof(ops)/sizeof(ops[0]);
 	for(int op=0;op<count;op++) {
-		//printf("comparing %s with %s\n",ops[op],s);
+		//printf("comparing %s with %s at idx %d\n",ops[op],s,op);
 		char *opc = ops[op];
 		if(opc[0] == s[0] && opc[1] == s[1] && opc[2] == s[2]) {
 			printf("op found: %d\n",op);
