@@ -214,7 +214,9 @@ linkScan(FILE *f) {
 				if((buf[1] == '@') && ((lidx = labelIdx(buf+2)) >= 0)) {
 					Label tl = labels[lidx];
 					bin[binlen++] = 0x2; // write the lit opcode
+					int offset = tl.addr-(binlen+1);
 					writebyte(tl.addr-(binlen+1));// add one to address to account for this writebyte offset.	
+					if( (offset < -128) || (offset > 127)) { printf("ERROR: offset too large to fit in signed byte\n"); return -1; }
 					printf("relative address of label is %d\n", tl.addr-(binlen)); 
 				}
 				break;	
