@@ -338,6 +338,69 @@ linkScan(FILE *f) {
 // move the switch in mainScan in here so that macro handling can call this recursively.
 static int
 range(char *buf) {
+
+	int op, lidx;
+	UInt16 val;
+	// first check for compiler symbols
+	switch(buf[0]) {
+
+		case '^': // move to position in memory given by absolute argument
+			val = hextract(&buf[1]);
+			binlen = val;
+			break;
+
+		case ':': // elide short address
+			if(buf[1] == '@') binlen += 2;	// make room for raw address as short 
+			break;
+
+		case '_': // elide floored label; lit + byte addr
+			if((buf[1] == '@') && ((lidx = labelIdx(buf+2)) >= 0)) { binlen += 2; } 
+			break;
+
+		case '#': // literal values given as hex values or as labels to be resolved. 
+			if(buf[1] == '@') { 
+				printf("mainScan leaving room for literal label from 0x%x to 0x%x\n",binlen, binlen+3);
+				binlen += 3;	// make room for an opcode and a short
+				break;
+				
+			} else {
+				// not a label, so is the literal size a byte or a short?
+				binlen += (stln(buf+1) < 3) ? 2 : 3; // advance position in binary by the opcode and the short	
+			}
+
+			break;	
+
+		case '$':	// relative address given as a label to be resolved and converted to relative distance.
+			if(buf[1] == '@') { 
+				binlen += 2;	// make room for opcode and a byte
+				break;
+			}
+			break;	
+
+		case '@': // 
+			printf("Handling label: ");
+			// if the label already exists, create a new one using the existing as a namespace.
+			// NB: to implement. Needs a string concatenation function.
+			// if the label does not exist, create it
+			if(addLabel(buf+1, binlen) < 0) { return -1; } 
+			break;	
+
+
+		default:
+			if(str2op(buf) >= 0) { binlen++; } 
+			else { 
+				int midx;
+				if((midx = macroIdx(buf)) >= 0) {
+					Macro m = macros[midx];
+					for (int i=0;i<m.defcount;i++) { range(m.defs[i]); }
+				} else {
+					if(ishex(buf)) { 
+						binlen += (stln(buf) < 3) ? 1 : 2; // advance position in binary by the byte or short	
+						printf("link-scan found raw hex 0x%x",val);
+					}
+				}
+			}
+	}	
 	return 0;
 }
 
@@ -348,8 +411,6 @@ mainScan(FILE *f) {
 	size_t len = 0;
 	ssize_t read;
 	char buf[42];
-	int op, lidx;
-	UInt16 val;
 	Label l;
 	UInt8 inComment = 0;
 
@@ -363,70 +424,12 @@ mainScan(FILE *f) {
 		if(buf[0] == ')') { inComment = 0; continue; }
 		if(inComment) continue;	
 
-		// first check for compiler symbols
-		switch(buf[0]) {
-
-			case '^': // move to position in memory given by absolute argument
-				val = hextract(&buf[1]);
-				binlen = val;
-				break;
-
-			case ':': // elide short address
-				if(buf[1] == '@') binlen += 2;	// make room for raw address as short 
-				break;
-
-			case '_': // elide floored label; lit + byte addr
-				if((buf[1] == '@') && ((lidx = labelIdx(buf+2)) >= 0)) { binlen += 2; } 
-				break;
-
-			case '#': // literal values given as hex values or as labels to be resolved. 
-				if(buf[1] == '@') { 
-					printf("mainScan leaving room for literal label from 0x%x to 0x%x\n",binlen, binlen+3);
-					binlen += 3;	// make room for an opcode and a short
-					break;
-					
-				} else {
-					// not a label, so is the literal size a byte or a short?
-					binlen += (stln(buf+1) < 3) ? 2 : 3; // advance position in binary by the opcode and the short	
-				}
-
-				break;	
-
-			case '$':	// relative address given as a label to be resolved and converted to relative distance.
-				if(buf[1] == '@') { 
-					binlen += 2;	// make room for opcode and a byte
-					break;
-				}
-				break;	
-
-			case '@': // 
-				printf("Handling label: ");
-				// if the label already exists, create a new one using the existing as a namespace.
-				// NB: to implement. Needs a string concatenation function.
-				// if the label does not exist, create it
-				if(addLabel(buf+1, binlen) < 0) { return -1; } 
-				break;	
-
-			case '%': // macro definition
-				printf("Handling macro: ");
-				addMacro(&buf[1], f);
-				break;
-
-			default:
-				if(str2op(buf) >= 0) { binlen++; } 
-				else { 
-					int midx;
-					if((midx = macroIdx(buf)) >= 0) {
-						binlen += macros[midx].defcount;
-					} else {
-						if(ishex(buf)) { 
-							binlen += (stln(buf) < 3) ? 1 : 2; // advance position in binary by the byte or short	
-							printf("link-scan found raw hex 0x%x",val);
-						}
-					}
-				}
-		}	
-		
+		if(buf[0] == '%') { // macro definition
+			printf("Handling macro: ");
+			addMacro(&buf[1], f);
+		} else {
+			range(buf);
+		}
 	}
 
 	printf("------------ MAIN SCAN END ---------------\n");
