@@ -29,6 +29,7 @@ typedef struct Label {
 typedef struct Macro {
 	char name[labelNameMax];
 	char defs[MAXDEF][42];
+	int defcount;
 } Macro;
 
 // The binary can at most be the size of TEMA's RAM
@@ -182,7 +183,20 @@ addMacro(char *name, FILE *f) {
  			}
 			// add to macro definition
 			memcpy(macros[mcount].defs[defpos++],buf, strlen(buf)+1);
+			macros[mcount].defcount++;
 			printf("macro %s added %s\n",name, buf);
+		}
+	}
+	return -1;
+}
+
+int
+macroIdx(char* name) {
+	for (int i=0;i<mcount;i++) {
+		printf("comparing %s == %s\n",name,macros[i].name);
+		if(strcmp(name, macros[i].name) == 0) {
+			printf("returning %d\n",i);
+			return i;
 		}
 	}
 	return -1;
@@ -207,6 +221,7 @@ addLabel(char *name, UInt16 addr) {
 static int
 parse(char *buf) {
 
+	int op;
 	int lidx;
 	UInt16 val;
 
@@ -239,8 +254,16 @@ parse(char *buf) {
 				writeshort(labels[lidx].addr);
 				printf("absolute address of literal label is 0x%x\n", labels[lidx].addr); 
 			} else {
-				// not a label, so is the literal size a byte or a short?
-				binlen += (stln(buf+1) < 3) ? 2 : 3; // advance position in binary by the opcode and the short	
+				val = hextract(&buf[1]);
+				// are we writing a byte or a short?
+				if(stln(buf+1) < 3) { 
+					writebyte(0x02);		// opcode for .lit
+					writebyte(val);
+				}
+				else {
+					writebyte(0x22) ;	// opcode for .lit16
+					writeshort(val);
+				}
 			}
 			break;
 
@@ -259,15 +282,28 @@ parse(char *buf) {
 			printf("ignoring label: %s\n",buf);
 			break;
 	
+		case '%': // macro definition
+			printf("parse ignoring macro definition: %s\n",buf);
+			break;
+
 		default:
-			//binlen++;
-			//printf("opcode assumed. Incrementing binlen to 0x%x\n",binlen);
-			
-			if(str2op(buf) >= 0) { binlen++; } 
-			else { 
-				if(ishex(buf)) { 
-					binlen += (stln(buf) < 3) ? 1 : 2; // advance position in binary by the byte or short	
-					printf("link-scan found raw hex 0x%x",val);
+			if((op = str2op(buf)) >= 0) {
+				printf("opcode is %d\n",op);
+				bin[binlen++] = op;
+			} else {
+				int midx;
+				// if it is a macro, call parse recursively with the contents of the macro.
+				if((midx = macroIdx(buf)) >= 0 ) {
+					Macro m = macros[midx];
+					for (int i=0;i<m.defcount;i++) { parse(m.defs[i]); }
+				} else {		
+					// if the buf is a valid hex value store it at binlen as a raw value.
+					if(ishex(buf)) {
+						val = hextract(buf);
+						if(stln(buf) < 3) writebyte(val);
+						else writeshort(val);
+						printf("found raw hex 0x%x",val);
+					}
 				}
 			}
 	}
@@ -296,6 +332,12 @@ linkScan(FILE *f) {
 	}
 
 	printf("------------ LINK-SCAN END ---------------\n");
+	return 0;
+}
+
+// move the switch in mainScan in here so that macro handling can call this recursively.
+static int
+range(char *buf) {
 	return 0;
 }
 
@@ -344,18 +386,10 @@ mainScan(FILE *f) {
 					break;
 					
 				} else {
-					val = hextract(&buf[1]);
+					// not a label, so is the literal size a byte or a short?
+					binlen += (stln(buf+1) < 3) ? 2 : 3; // advance position in binary by the opcode and the short	
 				}
 
-				// are we writing a byte or a short?
-				if(stln(buf+1) < 3) { 
-					writebyte(0x02);		// opcode for .lit
-					writebyte(val);
-				}
-				else {
-					writebyte(0x22) ;	// opcode for .lit16
-					writeshort(val);
-				}
 				break;	
 
 			case '$':	// relative address given as a label to be resolved and converted to relative distance.
@@ -379,17 +413,16 @@ mainScan(FILE *f) {
 				break;
 
 			default:
-
-				if((op = str2op(buf)) >= 0) {
-					printf("opcode is %d\n",op);
-					bin[binlen++] = op;
-				} else {
-					// if the buf is a valid hex value store it at binlen as a raw value.
-					if(ishex(buf)) {
-						val = hextract(buf);
-						if(stln(buf) < 3) writebyte(val);
-						else writeshort(val);
-						printf("found raw hex 0x%x",val);
+				if(str2op(buf) >= 0) { binlen++; } 
+				else { 
+					int midx;
+					if((midx = macroIdx(buf)) >= 0) {
+						binlen += macros[midx].defcount;
+					} else {
+						if(ishex(buf)) { 
+							binlen += (stln(buf) < 3) ? 1 : 2; // advance position in binary by the byte or short	
+							printf("link-scan found raw hex 0x%x",val);
+						}
 					}
 				}
 		}	
