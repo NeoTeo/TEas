@@ -5,6 +5,9 @@
 
 #define MAXBIN 65535
 #define MAXLAB 256 
+#define MAXMAC 64 
+#define MAXDEF 32 
+
 /*
 So, i need a way of deciding if a token is an opcode or a value.
 To do that i need a way of quickly comparing a token with existing opcodes.
@@ -23,6 +26,10 @@ typedef struct Label {
 	short addr;	
 } Label;
 
+typedef struct Macro {
+	char name[labelNameMax];
+	char defs[MAXDEF][42];
+} Macro;
 
 // The binary can at most be the size of TEMA's RAM
 UInt8 bin[MAXBIN];
@@ -42,6 +49,8 @@ static char ops[][4] = {"brk","nop","lit","pop",
 Label labels[MAXLAB];
 int lcount = 0;
 
+Macro macros[MAXMAC];
+int mcount = 0;
 
 int
 labelIdx(char* token) {
@@ -149,17 +158,30 @@ int
 addMacro(char *name, FILE *f) {
 
 	int inMacro = 0;
+	UInt8 defpos = 0;
 	char buf[42];
 
+	if( mcount >= MAXMAC ) {
+		fprintf(stderr, "addMacro: Macro buffer full!");
+		return -1 ;
+	}	
+
 	// add an instance of the macro struct
+	memcpy(macros[mcount].name, name, strlen(name)+1);
+
 	// extract each word between the macro delimiters
 	while(fscanf(f, "%s", buf) == 1) {
 		switch(buf[0]) {
 		case '{': inMacro = 1; break;
-		case '}': return 0;
+		case '}': mcount++; return 0;
 		default:
 			if( !inMacro ) break;
+			if( defpos >= MAXDEF ) { 
+				fprintf(stderr, "addMacro: Macro definitions buffer full!");
+				return -1;
+ 			}
 			// add to macro definition
+			memcpy(macros[mcount].defs[defpos++],buf, strlen(buf)+1);
 			printf("macro %s added %s\n",name, buf);
 		}
 	}
@@ -172,11 +194,10 @@ addLabel(char *name, UInt16 addr) {
 		printf("addLabel: label defined twice!\n");
 		return -1;
 	}
-	if(lcount >= labelNameMax) {
+	if(lcount >= MAXLAB) {
 		fprintf(stderr, "addLabel: label buffer full!");
 		return -1 ;
 	}	
-	// do i need to copy the label string here? Yes!
 	memcpy(labels[lcount].name, name, strlen(name)+1);
 	memcpy(&labels[lcount++].addr, &addr, 2);
 	printf("added new label %s at address 0x%x\n",labels[lcount-1].name, labels[lcount-1].addr);
