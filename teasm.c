@@ -254,7 +254,6 @@ parse(char *buf) {
 			break;
 
 		case '#': // literal values given as hex values or as labels to be resolved. 
-			//if((buf[1] == '@') && ((lidx = labelIdx(buf+2)) >= 0)) {
 			if(buf[1] == '@') {
 				if((lidx = labelIdx(buf+2)) < 0) { printf("ERROR: parse absolute address label not found\n"); return -1; }
 				printf("writing literal address in 0x%x to 0x%x\n",binlen,binlen+3);
@@ -276,14 +275,13 @@ parse(char *buf) {
 			break;
 
 		case '$':	// relative address given as a label to be resolved and converted to relative distance.
-			//if((buf[1] == '@') && ((lidx = labelIdx(buf+2)) >= 0)) {
 			if(buf[1] == '@') {
 				if((lidx = labelIdx(buf+2)) < 0) { printf("ERROR: parse relative address label not found\n"); return -1; }
 				Label tl = labels[lidx];
 				bin[binlen++] = 0x2; // write the lit opcode
 				int offset = tl.addr-(binlen+1);
 				writebyte(tl.addr-(binlen+1));// add one to address to account for this writebyte offset.	
-				if( (offset < -128) || (offset > 127)) { printf("ERROR: offset too large to fit in signed byte\n"); return -1; }
+				if( (offset < -128) || (offset > 127)) { printf("ERROR: %s offset too large to fit in signed byte\n",tl.name); return -1; }
 				printf("relative address of label %s is %d\n", tl.name , tl.addr-(binlen)); 
 			}
 			break;	
