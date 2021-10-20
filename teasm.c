@@ -206,7 +206,7 @@ macroIdx(char* name) {
 int
 addLabel(char *name, UInt16 addr) {
 	if(labelIdx(name) >= 0) {
-		printf("addLabel: label defined twice!\n");
+		printf("addLabel WARNING: label %s defined twice!\n",name);
 		return -1;
 	}
 	if(lcount >= MAXLAB) {
@@ -256,10 +256,10 @@ parse(char *buf) {
 		case '#': // literal values given as hex values or as labels to be resolved. 
 			if(buf[1] == '@') {
 				if((lidx = labelIdx(buf+2)) < 0) { printf("ERROR: parse absolute address label not found\n"); return -1; }
-				printf("writing literal address in 0x%x to 0x%x\n",binlen,binlen+3);
+				//printf("writing literal address of %s in 0x%x to 0x%x\n", buf, binlen,binlen+3);
 				writebyte(0x22);	// opcode for .lit16
 				writeshort(labels[lidx].addr);
-				printf("absolute address of literal label %s is 0x%x\n", labels[lidx].name, labels[lidx].addr); 
+				//printf("absolute address of literal label %s is 0x%x\n", labels[lidx].name, labels[lidx].addr); 
 			} else {
 				val = hextract(&buf[1]);
 				// are we writing a byte or a short?
@@ -282,7 +282,7 @@ parse(char *buf) {
 				int offset = tl.addr-(binlen+1);
 				writebyte(tl.addr-(binlen+1));// add one to address to account for this writebyte offset.	
 				if( (offset < -128) || (offset > 127)) { printf("ERROR: %s offset too large to fit in signed byte\n",tl.name); return -1; }
-				printf("relative address of label %s is %d\n", tl.name , tl.addr-(binlen)); 
+				//printf("relative address of label %s is %d\n", tl.name , tl.addr-(binlen)); 
 			}
 			break;	
 		
@@ -375,7 +375,7 @@ range(char *buf) {
 
 		case '#': // literal values given as hex values or as labels to be resolved. 
 			if(buf[1] == '@') { 
-				printf("mainScan leaving room for literal label from 0x%x to 0x%x\n",binlen, binlen+3);
+				//printf("mainScan leaving room for literal label %s from 0x%x to 0x%x\n",buf, binlen, binlen+3);
 				binlen += 3;	// make room for an opcode and a short
 				break;
 				
@@ -433,7 +433,7 @@ mainScan(FILE *f) {
 	binlen = 0; // reset bin length
 	printf("------------ MAIN SCAN START ---------------\n");
 	while(fscanf(f, "%s", buf) == 1) {
-		printf("buf: %s\n", buf);
+		//printf("buf: %s\n", buf);
 
 		// skip comments
 		if(buf[0] == '(') { inComment = 1; continue; }
