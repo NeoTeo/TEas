@@ -225,7 +225,7 @@ parse(char *buf) {
 	int op;
 	int lidx;
 	UInt16 val;
-
+	//printf("parse buf is %s\n",buf);
 	switch(buf[0]) {
 		case '^':	// move to position in memory given by absolute argument
 			val = hextract(&buf[1]);
@@ -327,6 +327,7 @@ linkScan(FILE *f) {
 
 	char buf[42];
 	UInt8 inComment = 0;
+	UInt8 inMacro = 0;
 
 	binlen = 0; // reset bin length
 
@@ -337,6 +338,12 @@ linkScan(FILE *f) {
 		if(buf[0] == '(') { inComment = 1; continue; }
 		if(buf[0] == ')') { inComment = 0; continue; }
 		if(inComment) continue;	
+
+		// skip macro definition 
+		if(buf[0] == '{') { inMacro = 1; continue; }
+		if(buf[0] == '}') { inMacro = 0; continue; }
+		if(inMacro) continue;	
+
 		if(parse(buf) < 0) return -1;
 
 	}
