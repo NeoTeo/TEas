@@ -8,6 +8,8 @@
 #define MAXMAC 64 
 #define MAXDEF 32 
 
+#define STRLEN 64
+
 /*
 So, i need a way of deciding if a token is an opcode or a value.
 To do that i need a way of quickly comparing a token with existing opcodes.
@@ -18,16 +20,14 @@ typedef signed char Int8;
 typedef unsigned short UInt16;
 typedef signed short Int16;
 
-// Constants
-const int labelNameMax = 64;
 
 typedef struct Label {
-	char name[labelNameMax];
+	char name[STRLEN];
 	short addr;	
 } Label;
 
 typedef struct Macro {
-	char name[labelNameMax];
+	char name[STRLEN];
 	char defs[MAXDEF][42];
 	int defcount;
 } Macro;
@@ -35,6 +35,7 @@ typedef struct Macro {
 // The binary can at most be the size of TEMA's RAM
 UInt8 bin[MAXBIN];
 UInt16 binlen = 0;
+
 
 // NB: This table needs to match the number and order of the opcodes in the TEMA sources.
 static char ops[][4] = {"brk","nop","lit","pop",
@@ -64,14 +65,6 @@ labelIdx(char* token) {
 	}
 	return -1;
 }
-
-//int
-//isLabel(char* token) {
-//	for (int i=0;i<lcount;i++) {
-//		if(strcmp(token, labels[i].name) == 0) return 1;
-//	}
-//	return 0;
-//}
 
 void
 lowerize(char* s) {
@@ -124,10 +117,18 @@ writeshort(UInt16 val) {
 }
 
 static int 
-stln(char *s) { 
+stlen(char *s) { 
 	int i = 0;
 	for(;(s[i] && s[++i]);) ;
 	return i;
+}
+
+char *
+stcopy(char *src, char *tar, int len) {
+	int i=0;
+	for(;i<len;i++) tar[i] = src[i];
+	src[i+1] = '\0';
+	return tar;
 }
 
 int
@@ -203,28 +204,51 @@ macroIdx(char* name) {
 	return -1;
 }
 
+char* concat(const char *s1, const char *s2)
+{
+    const size_t len1 = strlen(s1);
+    const size_t len2 = strlen(s2);
+    char *result = malloc(len1 + len2 + 1); // +1 for the null-terminator
+   	if(result == NULL) return NULL ; 
+    memcpy(result, s1, len1);
+    memcpy(result + len1, s2, len2 + 1); // +1 to copy the null-terminator
+    return result;
+}
+
+static char * 
+scopedLabel(char *sLabel, const char *label, const char *scope) {
+	//char *sLabel = malloc(STRLEN);
+	sLabel = concat(scope, concat("/", label));
+	return sLabel;
+}
+
 int
 addLabel(char *name, UInt16 addr) {
+
 	if(labelIdx(name) >= 0) {
 		printf("addLabel WARNING: label %s defined twice!\n",name);
-		return -1;
+		return -1;	
 	}
 	if(lcount >= MAXLAB) {
 		fprintf(stderr, "addLabel: label buffer full!");
 		return -1 ;
 	}	
+
 	memcpy(labels[lcount].name, name, strlen(name)+1);
 	memcpy(&labels[lcount++].addr, &addr, 2);
 	printf("added new label %s at address 0x%x\n",labels[lcount-1].name, labels[lcount-1].addr);
 	return 0;
 }
 
+
+// used in the second pass to tie labels to addresses
 static int
 parse(char *buf) {
 
 	int op;
 	int lidx;
 	UInt16 val;
+
 	//printf("parse buf is %s\n",buf);
 	switch(buf[0]) {
 		case '^':	// move to position in memory given by absolute argument
@@ -238,7 +262,7 @@ parse(char *buf) {
 			break;
 
 		case ':': // write address of label at current address without lit opcode
-			if((buf[1] == '@') && ((lidx = labelIdx(buf+2)) >= 0)) {
+			if((lidx = labelIdx(buf+1)) >= 0) {
 				printf("writing raw address in 0x%x to 0x%x\n",binlen,binlen+1);
 				writeshort(labels[lidx].addr);
 				printf("absolute address of raw label is 0x%x\n", labels[lidx].addr); 
@@ -246,49 +270,44 @@ parse(char *buf) {
 			break;
 
 		case '_': // write lsb of label address (aka offset from address 0x0000)
-			if((buf[1] == '@') && ((lidx = labelIdx(buf+2)) >= 0)) {
+			if((lidx = labelIdx(buf+1)) >= 0) {
 				writebyte(0x2);	// opcode for .lit
 				writebyte(labels[lidx].addr);
 				printf("lsb of label address %s is 0x%x\n", labels[lidx].name, (UInt8)labels[lidx].addr); 
 			} 
 			break;
 
+		case ';': // absolute address
+			if((lidx = labelIdx(buf+1)) < 0) { printf("ERROR: parse absolute address label %s not found\n",buf+1); return -1; }
+			//printf("writing literal address of %s in 0x%x to 0x%x\n", buf, binlen,binlen+3);
+			writebyte(0x22);	// opcode for .lit16
+			writeshort(labels[lidx].addr);
+			printf("absolute address of literal label %s is 0x%x\n", labels[lidx].name, labels[lidx].addr); 
+			break;
+
 		case '#': // literal values given as hex values or as labels to be resolved. 
-			if(buf[1] == '@') {
-				if((lidx = labelIdx(buf+2)) < 0) { printf("ERROR: parse absolute address label not found\n"); return -1; }
-				//printf("writing literal address of %s in 0x%x to 0x%x\n", buf, binlen,binlen+3);
-				writebyte(0x22);	// opcode for .lit16
-				writeshort(labels[lidx].addr);
-				//printf("absolute address of literal label %s is 0x%x\n", labels[lidx].name, labels[lidx].addr); 
-			} else {
-				val = hextract(&buf[1]);
-				// are we writing a byte or a short?
-				if(stln(buf+1) < 3) { 
-					writebyte(0x02);		// opcode for .lit
-					writebyte(val);
-				}
-				else {
-					writebyte(0x22) ;	// opcode for .lit16
-					writeshort(val);
-				}
+			val = hextract(&buf[1]);
+			// are we writing a byte or a short?
+			if(stlen(buf+1) < 3) { 
+				writebyte(0x02);		// opcode for .lit
+				writebyte(val);
+			}
+			else {
+				writebyte(0x22) ;	// opcode for .lit16
+				writeshort(val);
 			}
 			break;
 
 		case '$':	// relative address given as a label to be resolved and converted to relative distance.
-			if(buf[1] == '@') {
-				if((lidx = labelIdx(buf+2)) < 0) { printf("ERROR: parse relative address label not found\n"); return -1; }
-				Label tl = labels[lidx];
-				bin[binlen++] = 0x2; // write the lit opcode
-				int offset = tl.addr-(binlen+1);
-				writebyte(tl.addr-(binlen+1));// add one to address to account for this writebyte offset.	
-				if( (offset < -128) || (offset > 127)) { printf("ERROR: %s offset too large to fit in signed byte\n",tl.name); return -1; }
-				//printf("relative address of label %s is %d\n", tl.name , tl.addr-(binlen)); 
-			}
+			if((lidx = labelIdx(buf+1)) < 0) { printf("ERROR: parse relative address label %s not found\n",buf); return -1; }
+			Label tl = labels[lidx];
+			bin[binlen++] = 0x2; // write the lit opcode
+			int offset = tl.addr-(binlen+1);
+			writebyte(tl.addr-(binlen+1));// add one to address to account for this writebyte offset.	
+			if( (offset < -128) || (offset > 127)) { printf("ERROR: %s offset too large to fit in signed byte\n",tl.name); return -1; }
+			printf("relative address of label %s is %d\n", tl.name , tl.addr-(binlen)); 
 			break;	
 		
-		case '@':	// define label by associating a name with an absolute address 
-			//printf("ignoring label: %s\n",buf);
-			break;
 	
 		case '%': // macro definition
 			printf("parse ignoring macro definition: %s\n",buf);
@@ -310,7 +329,7 @@ parse(char *buf) {
 					// if the buf is a valid hex value store it at binlen as a raw value.
 					if(ishex(buf)) {
 						val = hextract(buf);
-						if(stln(buf) < 3) writebyte(val);
+						if(stlen(buf) < 3) writebyte(val);
 						else writeshort(val);
 						//printf("found raw hex 0x%x",val);
 					}
@@ -325,7 +344,7 @@ parse(char *buf) {
 static int
 linkScan(FILE *f) {
 
-	char buf[42];
+	char buf[STRLEN], scope[STRLEN], sLabel[STRLEN];
 	UInt8 inComment = 0;
 	UInt8 inMacro = 0;
 
@@ -344,6 +363,14 @@ linkScan(FILE *f) {
 		if(buf[0] == '}') { inMacro = 0; continue; }
 		if(inMacro) continue;	
 
+		if(buf[0] == '@') memcpy(scope, buf+1, STRLEN); 
+
+		// catch scoped labels before we parse
+		if(buf[1] == '.' && (buf[0] == '_' || buf[0] == '$' || buf[0] == ';')) {
+			printf("caught scoped label %s...\n",buf);
+			stcopy(scopedLabel(sLabel, buf+2, scope), buf+1, STRLEN);	
+			printf("...and turned it into %s\n",buf);
+		}
 		if(parse(buf) < 0) return -1;
 
 	}
@@ -352,12 +379,14 @@ linkScan(FILE *f) {
 	return 0;
 }
 
+
 // move the switch in mainScan in here so that macro handling can call this recursively.
 static int
 range(char *buf) {
 
 	int op, lidx;
 	UInt16 val;
+	char scope[STRLEN], sLabel[STRLEN];
 	// first check for compiler symbols
 	switch(buf[0]) {
 
@@ -373,32 +402,32 @@ range(char *buf) {
 			break;
 
 		case ':': // elide short address
-			if(buf[1] == '@') binlen += 2;	// make room for raw address as short 
+			binlen += 2;	// make room for raw address as short 
+			break;
+
+		case '.': // scoped label
+			if(scope[0] == 0) { printf("ERROR: sublabel defined outside of scope.\n"); return -1; }
+			if(addLabel(scopedLabel(sLabel, buf+1, scope), binlen) < 0) { return -1; } 
 			break;
 
 		case '_': // elide floored label; lit + byte addr
-			if((buf[1] == '@') && ((lidx = labelIdx(buf+2)) >= 0)) { binlen += 2; } 
+			if((lidx = labelIdx(buf+1)) >= 0) { binlen += 2; } 
+			break;
+
+		case ';': // absolute address
+			//printf("mainScan leaving room for literal label %s from 0x%x to 0x%x\n",buf, binlen, binlen+3);
+			binlen += 3;	// make room for an opcode and a short
 			break;
 
 		case '#': // literal values given as hex values or as labels to be resolved. 
-			if(buf[1] == '@') { 
-				//printf("mainScan leaving room for literal label %s from 0x%x to 0x%x\n",buf, binlen, binlen+3);
-				binlen += 3;	// make room for an opcode and a short
-				break;
-				
-			} else {
-				// not a label, so is the literal size a byte or a short?
-				binlen += (stln(buf+1) < 3) ? 2 : 3; // advance position in binary by the opcode and the short	
-			}
+			// is the literal size a byte or a short?
+			binlen += (stlen(buf+1) < 3) ? 2 : 3; // advance position in binary by the opcode and the short	
 
 			break;	
 
 		case '$':	// relative address given as a label to be resolved and converted to relative distance.
-			if(buf[1] == '@') { 
-				binlen += 2;	// make room for opcode and a byte
-				break;
-			}
-			break;	
+			binlen += 2;	// make room for opcode and a byte
+			break;
 
 		case '@': // 
 			printf("Handling label: ");
@@ -406,6 +435,9 @@ range(char *buf) {
 			// NB: to implement. Needs a string concatenation function.
 			// if the label does not exist, create it
 			if(addLabel(buf+1, binlen) < 0) { return -1; } 
+
+			// labels define a scope.
+			memcpy(scope, buf+1, STRLEN);
 			break;	
 
 
@@ -418,7 +450,7 @@ range(char *buf) {
 					for (int i=0;i<m.defcount;i++) { range(m.defs[i]); }
 				} else {
 					if(ishex(buf)) { 
-						binlen += (stln(buf) < 3) ? 1 : 2; // advance position in binary by the byte or short	
+						binlen += (stlen(buf) < 3) ? 1 : 2; // advance position in binary by the byte or short	
 						//printf("link-scan found raw hex 0x%x",val);
 					}
 				}
@@ -427,13 +459,14 @@ range(char *buf) {
 	return 0;
 }
 
+// first scan of the file
 static int
 mainScan(FILE *f) {
 
 	char *sourceline = NULL;
 	size_t len = 0;
 	ssize_t read;
-	char buf[42];
+	char buf[STRLEN];
 	Label l;
 	UInt8 inComment = 0;
 
