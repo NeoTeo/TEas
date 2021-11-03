@@ -415,7 +415,7 @@ range(char *buf) {
 			break;
 
 		case ';': // absolute address
-			//printf("mainScan leaving room for literal label %s from 0x%x to 0x%x\n",buf, binlen, binlen+3);
+			//printf("range leaving room for literal label %s from 0x%x to 0x%x\n",buf, binlen, binlen+3);
 			binlen += 3;	// make room for an opcode and a short
 			break;
 
@@ -517,7 +517,7 @@ main(int argc, char **argv) {
 		printf("main scan was %d bytes\n",binlen);
 
 		if((err = linkScan(f))) {
-			fprintf(stderr, "Error %d pre-scanning input\n",err);
+			fprintf(stderr, "Error %d link-scanning input\n",err);
 			return err;
 		}
 		printf("link scan was %d bytes\n",binlen);
