@@ -302,8 +302,9 @@ parse(char *buf) {
 			if((lidx = labelIdx(buf+1)) < 0) { printf("ERROR: parse relative address label %s not found\n",buf); return -1; }
 			Label tl = labels[lidx];
 			bin[binlen++] = 0x2; // write the lit opcode
-			int offset = tl.addr-(binlen+1);
-			writebyte(tl.addr-(binlen+1));// add one to address to account for this writebyte offset.	
+			//int offset = tl.addr-(binlen+1);
+			int offset = tl.addr-(binlen+2);
+			writebyte(offset);// add one to address to account for this writebyte offset.	
 			if( (offset < -128) || (offset > 127)) { printf("ERROR: %s offset too large to fit in signed byte\n",tl.name); return -1; }
 			printf("relative address of label %s is %d\n", tl.name , tl.addr-(binlen)); 
 			break;	
