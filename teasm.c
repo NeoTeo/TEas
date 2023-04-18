@@ -450,6 +450,11 @@ range(char *buf) {
 			if(str2op(buf) >= 0) { binlen++; } 
 			else { 
 				int midx;
+				//! problem here when a macro is used in a function before it has been defined.
+				//! Ideally all references should have an intermediate id that is resolved at the 
+				//! code generation stage, which should be at the end of the first (and only, 
+				//! in the single pass compiler i'm going to write next) pass.
+				//! for now just ensure macros are defined before they are used.
 				if((midx = macroIdx(buf)) >= 0) {
 					Macro m = macros[midx];
 					for (int i=0;i<m.defcount;i++) { range(m.defs[i]); }
