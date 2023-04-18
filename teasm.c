@@ -57,7 +57,7 @@ int mcount = 0;
 int
 labelIdx(char* token) {
 	for (int i=0;i<lcount;i++) {
-		//printf("comparing %s == %s\n",token,labels[i].name);
+		printf("comparing %s == %s\n",token,labels[i].name);
 		if(strcmp(token, labels[i].name) == 0) {
 			//printf("returning %d\n",i);
 			return i;
@@ -150,8 +150,8 @@ str2op(char* s) {
 				}
 			}
 			return op;
-		}
-	}
+		} 
+	} 
 
 	return -1;
 }
@@ -270,6 +270,8 @@ parse(char *buf) {
 			break;
 
 		case '_': // write lsb of label address (aka offset from address 0x0000)
+			//!  printf("parse lidx is %u\n",labelIdx(buf+2));
+			//!  if((lidx = labelIdx(buf+2)) >= 0) {
 			if((lidx = labelIdx(buf+1)) >= 0) {
 				writebyte(0x2);	// opcode for .lit
 				writebyte(labels[lidx].addr);
@@ -303,7 +305,7 @@ parse(char *buf) {
 			Label tl = labels[lidx];
 			bin[binlen++] = 0x2; // write the lit opcode
 			//int offset = tl.addr-(binlen+1);
-			int offset = tl.addr-(binlen+2);
+			int offset = tl.addr-binlen-2;
 			writebyte(offset);// add one to address to account for this writebyte offset.	
 			if( (offset < -128) || (offset > 127)) { printf("ERROR: %s offset too large to fit in signed byte\n",tl.name); return -1; }
 			printf("relative address of label %s is %d\n", tl.name , tl.addr-(binlen)); 
@@ -340,7 +342,7 @@ parse(char *buf) {
 	return 0;
 }
 
-// An second pass to ensure that labels can be referenced before they have been defined.
+// A second pass to make labels referenceable before they have been defined.
 // NB. the binlen must be advanced in step with the mainScan.
 static int
 linkScan(FILE *f) {
@@ -381,7 +383,7 @@ linkScan(FILE *f) {
 }
 
 
-// move the switch in mainScan in here so that macro handling can call this recursively.
+/* range returns the number of bytes that the input expands to. !Why is binlen global? */
 static int
 range(char *buf) {
 
@@ -412,7 +414,9 @@ range(char *buf) {
 			break;
 
 		case '_': // elide floored label; lit + byte addr
+			printf("range _ token\n");
 			if((lidx = labelIdx(buf+1)) >= 0) { binlen += 2; } 
+			//!  if((lidx = labelIdx(buf+2)) >= 0) { binlen += 2; } 
 			break;
 
 		case ';': // absolute address
